@@ -293,8 +293,12 @@ int main(int argc, char *argv[])
     hints.ai_family = AF_INET; // family ipv4
     hints.ai_socktype = SOCK_STREAM; // socket stream for tcp connection
 
+    if(argc<2){
+        print("no command file entred")
+        exit(1)
+    }
     fstream command;// intial the file 
-    command.open("./tpoint.txt",ios::in); //open a file to perform read operation using file objec
+    command.open(argv[1],ios::in); //open a file to perform read operation using file objec
     if (command.is_open()){   //checking whether the file is open
     string tp;  // the readed command 
     string arr[4]; // string array to hold the 
