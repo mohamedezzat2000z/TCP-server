@@ -244,79 +244,160 @@ int main(int argc, char *argv[])
 {
 
 
-    int sockfd, numbytes;  
-    char buf[MAXDATASIZE];
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
-    char s[INET6_ADDRSTRLEN];
 
-    if (argc != 2) {
-        fprintf(stderr,"usage: client hostname\n");
-        exit(1);
-    }
+    int sockfd=-5, numbytes;  
 
+    struct addrinfo hints;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((rv = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
-    }
-
-    // loop through all the results and connect to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) {
-            perror("client: socket");
-            continue;
-        }
-
-        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("client: connect");
-            continue;
-        }
-
-        break;
-    }
-
-    	if (p == NULL) {
-        	fprintf(stderr, "client: failed to connect\n");
-        	return 2;
-   	    }
-
-    	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),s, sizeof s);
-
-    	printf("client: connecting to %s\n", s);
-
-    	freeaddrinfo(servinfo); // all done with this structure
-  
     ///////////////////////////////////////////////////////////
 
     fstream command;
+
     command.open("tpoint.txt",ios::in); //open a file to perform read operation using file object
+
     if (command.is_open()){   //checking whether the file is open
+
         string tp;
+
         string arr[4];
+
+	arr[0]="";
+
+	arr[1]="";
+
+	arr[2]="";
+
+	arr[3]="";
+
+	string host;
+
+	string port;
         while(getline(command, tp)){ 
 
+		cout << tp << "\n";
+
+		int taken=simple_tokenizer(tp,arr);
+
+		//if(arr[2]!=host && arr[3]!=port){
+
+		cout << "new connection" <<endl;
+
+	    	// create the connection 
+
+    		struct addrinfo *servinfo, *p;
+
+    		int rv;
+
+    		char s[INET6_ADDRSTRLEN];
+
+		if (taken==4)
+
+			port=arr[3];
+
+		else
+
+			port=DEFAULT_PORT;
+		host=arr[2];
+
+		/* convert from strin to char array*/
+
+		int pl = port.length();
+
+    		char prt[pl+1];
+
+    		strcpy(prt, port.c_str());
+
+		/* convert from strin to char array*/
+
+		int hl = host.length();
+
+    		char hos[hl+1];
+
+    		strcpy(hos, host.c_str());
+
+    		if ((rv = getaddrinfo(hos, prt, &hints, &servinfo)) != 0) {
+
+        		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+
+        		return 1;
+
+    		}
+
+    		// loop through all the results and connect to the first we can
+
+    		for(p = servinfo; p != NULL; p = p->ai_next) {
+
+        		if ((sockfd = socket(p->ai_family, p->ai_socktype,p->ai_protocol)) == -1) {
+
+            		perror("client: socket");
+
+            		continue;
+
+        		}
+
+        		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+
+            			close(sockfd);
+
+            			perror("client: connect");
+
+            			continue;
+
+        		}
+
+        			break;
+    			}
+
+    			if (p == NULL) {
+
+        			fprintf(stderr, "client: failed to connect\n");
+
+        			return 2;
+
+   	    		}
+
+	
+    			inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),s, sizeof s);
+
+    			printf("client: connecting to %s\n", s);
+
+    			freeaddrinfo(servinfo); // all done with this structure
+
+  		//}
+
+
             //read data from file object and put it into string.
+
             // parse the array and make the http header
-            int taken=simple_tokenizer(tp,arr);
-            if( construct_http_and_send(sockfd,arr) == -1){
-                perror("connect");
-                exit(1);
-            }
 
-            if(arr[0]=="client_get"){
-                reciveGET(sockfd,arr[1]);
-            }else{
-                recivePOST(sockfd);
-            }
-            close(sockfd);
-        }
+            		if( construct_http_and_send(sockfd,arr) == -1){
+
+                		perror("connect");
+
+                		exit(1);
+
+            		}
+
+            		if(arr[0]=="client_get"){
+
+                		reciveGET(sockfd,arr[1]);
+
+            		}else{
+
+               		 recivePOST(sockfd);
+
+            		}
+			close(sockfd);
+
+        	}
+
+     close(sockfd);
+
      command.close(); //close the file object.
-   }
 
+   }
     return 0;
 }
