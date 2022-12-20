@@ -39,6 +39,7 @@ using namespace std;
  * @param sa sockaddress
  * @return void* 
  */
+
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -47,7 +48,20 @@ void *get_in_addr(struct sockaddr *sa)
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
+string getFileName(string filePath){
+   
+    stringstream ssin(filePath);
+    int i=0;
 
+    string segment;
+    string last="";
+
+    while(std::getline(ssin, segment, '/'))
+    {
+        last=segment;
+    }
+    return last;
+}
 /**
  * @brief  Add a new file descriptor to the set
  * 
@@ -125,6 +139,43 @@ vector<string> simple_tokenizer(string s,string delim, int limit){
     seglist.push_back(s);
     return seglist;
 }  
+
+
+ int get_head(char* s,char* parts[],int *len){
+    int k=0;
+    int z=3;
+    int j=0;
+    char* head=s;
+    while(k<z){
+	    while(*s!='\n'){
+		    s++;
+            j++;
+	    }
+        char* part = s+1;
+	    *s='\0';
+	    parts[k]=head;
+        s=part;
+        head=part;
+        j++;
+        k++;
+        if (k==1){
+            string head(parts[0]);
+            vector<string>arr =simple_tokenizer(head," ",1);
+            if(*arr.begin() == "POST"){
+                z=4;
+            }
+        }   
+    }	
+    while(*s!='\n'){
+		s++;
+        j++;
+	}
+    s++;
+    j++;
+    parts[4]=s;
+    *len=j;
+	return z;
+}
 /**
  * @brief send all bytes
  * 
@@ -186,22 +237,28 @@ char* handle_get(string path, int * read){
     return response;
 }
 
-string handle_post(string path, string body){
-   // string name = getFileName(path);
+char* handle_post(string path,int sockfd ,char* body,int lenofbody,int length){
+    string name = getFileName(path);
     fstream newfile;
-    //cout << body << "\n";
-    newfile.open(path,ios::out); //open a file to perform read operation using file object
+    int len=length;
+    int numbytes=0;
+    char recivebuf[MAXDATASIZE];
+    newfile.open(name,ios::out); //open a file to perform read operation using file object
     if (newfile.is_open()){   //checking whether the file is open
-            newfile.write(body.c_str(),body.length());
-            //cout << tp << "\n"; //print the data of the string
-        
-     newfile.close(); //close the file object.
-    return construct_header(1);
+        newfile.write(body,lenofbody);
+        while( len >0){
+                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
+                len=len-numbytes;
+                newfile.write((char *)recivebuf,numbytes);
+        }   
+    newfile.close(); //close the file object.
+    char * response;
+    return strcpy(response,construct_header(1).c_str());
    }
    else{
     printf("file not found");
-    return construct_header(0);
-
+    char * response;
+    return strcpy(response,construct_header(0).c_str());
    }
 }
 /**
@@ -237,26 +294,21 @@ void send_response(int new_fd,char * responsebuffer, int * n){
         }
     printf("sent\n");
 }
-void thread_func(struct pollfd *pfds, int i, int* fd_count){
-           
-}
+
 /**
  * @brief reap dead processes
  * 
  */
-void sigchld_handler()
+void sigchld_handler(int signal_number)
 {
-    // waitpid() might overwrite errno, so we save and restore it:
-    int saved_errno = errno;
-
-    while(waitpid(-1, NULL, WNOHANG) > 0);
-
-    errno = saved_errno;
+    cout << "dead" << endl;
 }
 
 
 int run_server(int argc,char* argv[]){
-     int main_listener, new_fd;  // listen on sock_fd, new connection on new_fd
+
+    //signal(SIGCHLD,sigchld_handler);
+    int main_listener, new_fd;  // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage client_info; // client's address information
     socklen_t sin_size;
@@ -327,7 +379,7 @@ int run_server(int argc,char* argv[]){
 
     while(1) { // main accept() loop
         int poll_count = poll(pfds, *fd_count, 2500);
-                                printf("fd_count from parent%d \n",*fd_count);
+                                // printf("fd_count from parent%d \n",*fd_count);
 
          for(int i = 0; i < *fd_count; i++) {
             if (pfds[i].revents & POLLIN) { // We got one!!
@@ -335,9 +387,9 @@ int run_server(int argc,char* argv[]){
                     // If listener is ready to read, handle new connection
 
                     sin_size = sizeof client_info;
-                    new_fd = accept(main_listener,
+                    new_fd = accept4(main_listener,
                         (struct sockaddr *)&client_info,
-                        &sin_size);
+                        &sin_size, SOCK_NONBLOCK);
 
                     if (new_fd == -1) {
                         perror("accept");
@@ -355,66 +407,72 @@ int run_server(int argc,char* argv[]){
             }else{
                 int pid = fork();
                 if(pid == 0){
+                close(main_listener);
+                 int client_fd = pfds[i].fd;
+                //  int status = fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
+                for (int time = 0; time < 10/((*fd_count)-1); time++){
+                    sleep(10);
                     char HTTP_req[MAXDATASIZE];
                     char* newBody;
-                    int client_fd = pfds[i].fd;
+                   
                     int numbbytes;
-                    if(numbbytes = recv(client_fd, HTTP_req, MAXDATASIZE, 0) == -1){
-                    perror("recv header");
-                    close(client_fd);
-                    exit(0);
-                }
-                //printf ("Recieved : %s", HTTP_req);
-                string str_req(HTTP_req);
-                    //cout << str_req <<"\n";
-                // We got some good data from a client
-                vector<string>arr = simple_tokenizer(str_req, "\r\n",5);
-                            // cout << *arr.begin() << endl;
-                vector<string> header = simple_tokenizer(*arr.begin()," ",3);
-                            // cout << *header.begin() << endl;
-                if(*header.begin() == "GET"){
-                    int len = 0;
-                    newBody = handle_get(*(header.begin()+1), &len);
-                    send_response(client_fd, newBody,&len);
-                }
-                else{
-                 if(send(client_fd, "error parsing HTTP protocol", 1000,0) == -1){
-                     perror("send");
-                        close(client_fd);
-                        exit(0);
-                 }    
+                    if((numbbytes = recv(client_fd, HTTP_req, MAXDATASIZE, 0)) == -1){
+                        perror("recv header");
+                        break;
+                    }
+                    printf ("Recieved : %s", HTTP_req);
+                    // string str_req(HTTP_req);
+                
+                    // cout << "struck" <<"\n";
+                    // We got some good data from a client
+                    char* arguments[5];
+                    int rest=0;
+                    int arguments_len=get_head(HTTP_req,arguments,&rest);
+                
+                    // cout << *arr.begin() << endl;
+                    //vector<string> header = simple_tokenizer(*arr.begin()," ",3);
+                    // cout << *header.begin() << endl;
+                    if(arguments_len == 3){
+                        string header(arguments[0]);
+                        vector<string>arr = simple_tokenizer(header, " ",3);
+                        int len = 0;
+                        newBody = handle_get(*(arr.begin()+1), &len);
+                        send_response(client_fd, newBody,&len);
+                    }
+                    else if(arguments_len==4){
+                        string header(arguments[0]);
+                        vector<string>arr = simple_tokenizer(header, " ",3);
+                        string contentlength(arguments[3]);
+                        vector<string>arr2 = simple_tokenizer(contentlength,":",2);
+
+                        int len = stoi(*(arr2.begin()+1));
+                        newBody = handle_post(*(arr.begin()+1),client_fd,arguments[4],rest,len-rest);
+                        int l = 20;
+                        send_response(client_fd, newBody,&l);
+
+                    }
+                    else{
+                        if(send(client_fd, "error parsing HTTP protocol", 1000,0) == -1){
+                                perror("send");
+                                break;
+                        }    
+                    }
                 }
                 close(client_fd);
                 del_from_pfds(pfds, i, fd_count);
-                                    printf("fd_count from child%d",* fd_count);
+                // printf("fd_count from child%d",* fd_count);
                 exit(1);
-            }
-
+                    
+            }else{
                 close(pfds[i].fd);
+            }
             }
             }
          }
     }
         // if (!fork()) { // this is the child process
             // else if(*header.begin() == "POST"){
-                // cout << *(header.begin()+1) << endl;
-                // cout << *(arr.begin()+4) << endl;
-                // int length = stoi(*(arr.begin()+3));
-                // cout << length << endl;
-                // string s = "";
-                // if(length > MAXDATASIZE){
-                //     for(int i = MAXDATASIZE; i < length; i+=MAXDATASIZE){
-                //         string s = s+ recieve(new_fd, HTTP_req, MAXDATASIZE);
-                //         //cout << i << endl;
-                //     }
-                // }
-                // string k = *(arr.begin()+5) + s;
-                // newBody = handle_post(*(header.begin()+1),k);
                 
-                // if(i){
-                //     newHeader = construct_header(1);
-                // }
-                // newBody = "";
             // }
             // else{
             //     newBody = "";
