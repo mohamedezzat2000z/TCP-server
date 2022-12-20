@@ -39,7 +39,7 @@ int sendall(int s, char *buf, int *len)
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
     int n;
-
+    
     while(total < *len) {
         n = send(s, buf+total, bytesleft, 0);
         if (n == -1) { break; }
@@ -48,7 +48,6 @@ int sendall(int s, char *buf, int *len)
     }
 
     *len = total; // return number actually sent here
-
     return n==-1?-1:0; // return -1 on failure, 0 on success
 }
 
@@ -126,10 +125,11 @@ void recivePOST(int sockfd){
         int numbytes=0;
         char recivebuf[MAXDATASIZE];
     
-        if ((numbytes=recv(sockfd, recivebuf, MAXDATASIZE-1, 0)) == -1) {
+        if ( (numbytes=recv(sockfd, recivebuf, MAXDATASIZE-1, 0))  == -1) {
             perror("recv");
             exit(1);
         }
+
         recivebuf[numbytes] = '\0';
         printf("Received: %s",recivebuf);
             
@@ -179,14 +179,14 @@ void reciveGET(int sockfd,string filepath){
             out.close();
 
         }
-        printf("Received:");
 }
 
 
 /**
 * file adding tho the request
 */
-char * add_body(string filePath,int *len){
+/*
+char * add_body(string filePath,int *len,string header){
 
     string file= getFileName(filePath);
     ifstream ifs(file, ios::binary|ios::ate);
@@ -198,7 +198,7 @@ char * add_body(string filePath,int *len){
     *len=length;
     ifs.close();
     return pChars;
-}
+}*/
 
 /**
 * this function constuct the http_message from a series of commands
@@ -216,13 +216,24 @@ int construct_http_and_send(int socket ,string arr[]){
     bulid=type+" "+arr[1]+" "+"HTTP/1.1\r\n"+host+connect;
     int length=0;
     if (type=="POST"){
-        char* s = add_body(arr[1],&length);
+        string file= getFileName(arr[1]);
+        ifstream ifs(file, ios::binary|ios::ate);
+        ifstream::pos_type pos = ifs.tellg();
+        length = pos;
+        char *pChars = new char[length];
+        ifs.seekg(0, ios::beg);
+        ifs.read(pChars, length);
+        ifs.close();
+
+
         bulid=bulid+"content-length:"+to_string(length)+"\r\n"+"\r\n";
     	length = length + bulid.length();
     	char headerbuff[length];
     	strcpy(headerbuff,bulid.c_str());
-    	char* response = strcat(headerbuff,s);
-        return sendall(socket,response-1,&length);
+    	char* response = strcat(headerbuff,pChars);
+        return sendall(socket,response,&length);
+
+
     }else{
 	  bulid=bulid+"\r\n";
 	}
@@ -315,15 +326,18 @@ int main(int argc, char *argv[])
             		if( construct_http_and_send(sockfd,arr) == -1){
                 		exit(1);
             		}
+
             		if(arr[0]=="client_get"){
+
                 		reciveGET(sockfd,arr[1]);
             		}else{
                		 recivePOST(sockfd);
+
             		}
-            sleep(6);
         }
 
      close(sockfd);
+
      command.close(); //close the file object.
    }
     return 0;
