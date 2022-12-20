@@ -111,7 +111,7 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
  */
 string construct_header(int status,int dataLength = 0){
     if (status == 1 && dataLength > 0){
-    return "HTTP/1.1 200 OK\r\n"+to_string(dataLength)+"\r\n";
+    return "HTTP/1.1 200 OK\r\n" +string("content-length:")+to_string(dataLength)+"\r\n";
     }
     else if(status == 1){
         return "HTTP/1.1 200 OK\r\n";
@@ -130,53 +130,15 @@ vector<string> simple_tokenizer(string s,string delim, int limit){
     {  
         token1 = s.substr(0, pos); // store the substring   
         seglist.push_back(token1);
-        // cout << token1 << endl;  
+       
         s.erase(0, pos + delim.length());  /* erase() function store the current positon and move to next token. */ 
         i++;  
         }  
-        //cout << given_str << endl; // it print last token of the string.  
+
     seglist.push_back(s);
     return seglist;
 }  
 
-
- int get_head(char* s,char* parts[],int *len){
-    int k=0;
-    int z=3;
-    int j=0;
-    char* head=s;
-    while(k<z){
-	    while(*s!='\n'){
-		    s++;
-            j++;
-	    }
-        char* part = s+1;
-	    *s='\0';
-	    parts[k]=head;
-        s=part;
-        head=part;
-        j++;
-        k++;
-        if (k==1){
-            string head(parts[0]);
-             cout << (head) << endl;
-            vector<string>arr =simple_tokenizer(head," ",1);
-            cout << (*arr.begin()) << endl;
-            if((*arr.begin()) == "POST"){
-                z=4;
-            }
-        }   
-    }	
-    while(*s!='\n'){
-		s++;
-        j++;
-	}
-    s++;
-    j++;
-    parts[4]=s;
-    *len=j;
-	return z;
-}
 /**
  * @brief send all bytes
  * 
@@ -201,6 +163,21 @@ int sendall(int s, char *buf, int *len)
     *len = total; // return number actually sent here
 
     return n==-1?-1:0; // return -1 on failure, 0 on success
+}
+
+/**
+ * @brief send response back to client
+ * 
+ * @param new_fd file descriptor
+ * @param responsebuffer buffer holding response
+ * @param n length of the data
+ */
+void send_response(int new_fd,char * responsebuffer, int * n){
+    if (sendall(new_fd, responsebuffer, n) == -1){
+            perror("send");
+            exit(1);
+        }
+    printf("sent\n");
 }
 
 /**
@@ -232,40 +209,58 @@ char* handle_get(string path, int * read){
     *read = length + header.length();
     char headerbuff[*read];
     strcpy(headerbuff,header.c_str());
-    char* response = strcat(headerbuff,pChars);
+    char * response = (char *) malloc(sizeof(char)*(*read));
+    char * h = response;
+    int i = 0;
+    while(headerbuff[i] != '\0'){
+        *h = headerbuff[i];
+        i++;
+        h++;
+    }
+    char * b = pChars;
+    while (i < (*read))
+    {
+        *h = *b;
+        i++;
+        b++; 
+        h++;
+        /* code */
+    }
+    // char* response = strcat(headerbuff,pChars);
     //printf("%s", response);
 
     return response;
 }
 
-char* handle_post(string path,int sockfd ,char* body,int lenofbody,int length){
-    string name = getFileName(path);
+void handle_post(string path,int sockfd,int length){
+    cout << path <<endl;
+    string file=getFileName(path);
     fstream newfile;
     int len=length;
     int numbytes=0;
     char recivebuf[MAXDATASIZE];
-    newfile.open(name,ios::out); //open a file to perform read operation using file object
-    if (newfile.is_open()){   //checking whether the file is open
-        newfile.write(body,lenofbody);
+    newfile.open(file,ios::out); //open a file to perform read operation using file object
+    if (newfile.is_open()){//checking whether the file is open
+        int ren=18;
+        char response[ren];
+        strcpy(response,construct_header(1).c_str());
+        char * r = strcat(response, "");
+        send_response(sockfd, r,&ren);
         while( len >0){
                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
                 len=len-numbytes;
                 newfile.write((char *)recivebuf,numbytes);
         }  
-    cout << "start1" << endl;
+ 
     newfile.close(); //close the file object.
-    cout << "start2" << endl;
-    char response[18];
-    strcpy(response,construct_header(1).c_str());
-    char * r = strcat(response, "");
-    return r;
    }
    else{
     printf("file not found");
-    char response[25];
+    int ren=25;
+    char response[ren];
     strcpy(response,construct_header(0).c_str());
-    char *r = strcat(response,"");
-    return r;
+    char * r = strcat(response, "");
+    send_response(sockfd, r,&ren);
    }
 }
 /**
@@ -285,21 +280,6 @@ string recieve(int new_fd,char * HTTP_req, int size){
     //printf ("Recieved : %s", HTTP_req);
     string message(HTTP_req);
     return message;
-}
-
-/**
- * @brief send response back to client
- * 
- * @param new_fd file descriptor
- * @param responsebuffer buffer holding response
- * @param n length of the data
- */
-void send_response(int new_fd,char * responsebuffer, int * n){
-    if (sendall(new_fd, responsebuffer, n) == -1){
-            perror("send");
-            exit(1);
-        }
-    printf("sent\n");
 }
 
 /**
@@ -396,42 +376,32 @@ int run_server(int argc,char* argv[]){
                     struct pollfd ufds[1];
                     ufds[0].fd = new_fd;
                     ufds[0].events = POLLIN;
+                    int numbbytes; 
                     while(1){
                         int eve=poll(ufds,1,TIMEOUT/(*fd_count));
                         if (eve!=-1 && eve!=0){
                         char HTTP_req[MAXDATASIZE];
-                        char* newBody;
-                        int numbbytes; 
+                        char* newBody; 
                         if((numbbytes = recv(new_fd , HTTP_req, MAXDATASIZE, 0)) == -1){
                             perror("recv header");
                             break;
                         }
 
-                        // We got some good data from a client
-                        char* arguments[5];
-                        int rest=0;
-                        int arguments_len=get_head(HTTP_req,arguments,&rest);
-                        if(arguments_len == 3){
-
-                            string header(arguments[0]);
-                            vector<string>arr = simple_tokenizer(header, " ",3);
+                        HTTP_req[numbbytes] = '\0';
+                        string header(HTTP_req);
+                        vector<string>arr = simple_tokenizer(header,"\r\n",4);
+                     
+                        vector<string>arr2 = simple_tokenizer(*(arr.begin()), " ",3);
+                        if((*(arr2.begin())) == "GET"){
                             int len = 0;
-                            newBody = handle_get(*(arr.begin()+1), &len);
+                            newBody = handle_get(*(arr2.begin()+1), &len);
                             send_response(new_fd, newBody,&len);
                         }
-                        else if(arguments_len==4){
-                            string header(arguments[0]);
-                            cout << "get here 1" << endl;
-                            vector<string>arr = simple_tokenizer(header, " ",3);
-                            string contentlength(arguments[3]);
-                            vector<string>arr2 = simple_tokenizer(contentlength,":",2);
-                             cout << "get here 2" << endl;
-                            int len = stoi(*(arr2.begin()+1));
-                            len=len-(numbbytes-rest); 
-                            newBody = handle_post(*(arr.begin()+1),new_fd,arguments[4],(numbbytes-rest),len);
-                            cout << "get here 4" << endl;  
-                            int l = strlen(newBody);
-                            send_response(new_fd, newBody,&l);
+                        else if((*(arr2.begin()) )== "POST"){
+                        
+                            vector<string>arr3 = simple_tokenizer((*(arr.begin()+3) ),":",2);
+                            int len = stoi(*(arr3.begin()+1));
+                            handle_post(*(arr2.begin()+1),new_fd,len);
                         }
                         else{
                             if(send(new_fd, "error parsing HTTP protocol", 1000,0) == -1){
