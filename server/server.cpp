@@ -21,18 +21,15 @@
 #include <sys/mman.h>
 #include <signal.h>
 using namespace std;
-#define MAXDATASIZE 1000000
+#define MAXDATASIZE 1000000 // maximum data size of the server's buffer
 #define DEFAULT_PORT "1360" // the port users will be connecting to
-#define BACKLOG 10 // how many pending connections queue will hold
-#define TIMEOUT 10000
-   // Start off with room for 5 connections
-    // (We'll realloc as necessary)
+#define TIMEOUT 10000// server base time out for each process
+    // allocate number of currently spawned processes mapped to all processes to determine timeout heuristic
     int* fd_count = (int*) mmap(NULL, sizeof (int) , PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-    int fd_size = 5;
+    //pollfd data structure used to store fd for polling   
     struct pollfd *pfds =(struct pollfd *) mmap(NULL, sizeof *pfds * fd_size , PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-// get sockaddr, IPv4 or IPv6:
 /**
  * @brief Get the in addr object
  * 
@@ -48,6 +45,12 @@ void *get_in_addr(struct sockaddr *sa)
 
     return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
+/**
+ * @brief Get the File Name object
+ * 
+ * @param filePath path to extract file name from
+ * @return string file name
+ */
 string getFileName(string filePath){
    
     stringstream ssin(filePath);
@@ -61,45 +64,6 @@ string getFileName(string filePath){
         last=segment;
     }
     return last;
-}
-/**
- * @brief  Add a new file descriptor to the set
- * 
- * @param pfds set of polls
- * @param newfd new file descriptor
- * @param fd_count number of polls
- * @param fd_size file discreptor size
- */
-void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_count, int *fd_size)
-{
-    // If we don't have room, add more space in the pfds array
-    int old_fd = *fd_size;
-    if (*fd_count == *fd_size) {
-        *fd_size *= 2; // Double it
-
-        *pfds =(struct pollfd *) mremap(*pfds, sizeof(**pfds) * (old_fd),sizeof(**pfds) * (*fd_size),MREMAP_MAYMOVE);
-    }
-
-    (*pfds)[*fd_count].fd = newfd;
-    (*pfds)[*fd_count].events = POLLIN; // Check ready-to-read
-
-    (*fd_count)++;
-}
-
-/**
- * @brief Remove an index from the set
- * 
- * @param pfds  set of polls
- * @param i index of the poll
- * @param fd_count number of polls
- */
-
-void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
-{
-    // Copy the one from the end over this one
-    pfds[i] = pfds[*fd_count-1];
-
-    (*fd_count)--;
 }
 
 /**
@@ -120,7 +84,14 @@ string construct_header(int status,int dataLength = 0){
         return "HTTP/1.1 404 NOT FOUND\r\n";
     }
 }
-
+/**
+ * @brief tokenize a string into a vector of strings
+ * 
+ * @param s string to be tokenized
+ * @param delim string delimiter to tokenize around
+ * @param limit tokenization limit (how many slices)
+ * @return vector<string> vector of the sliced string
+ */
 vector<string> simple_tokenizer(string s,string delim, int limit){
     vector<string> seglist;
     size_t pos = 0; 
@@ -145,7 +116,7 @@ vector<string> simple_tokenizer(string s,string delim, int limit){
  * @param s file descriptor
  * @param buf buffer holding the data
  * @param len length of the data
- * @return int 
+ * @return int -1 on failure and 0 on success
  */
 int sendall(int s, char *buf, int *len)
 {
@@ -224,14 +195,17 @@ char* handle_get(string path, int * read){
         i++;
         b++; 
         h++;
-        /* code */
     }
-    // char* response = strcat(headerbuff,pChars);
-    //printf("%s", response);
 
     return response;
 }
-
+/**
+ * @brief function to handle incoming post requests from client
+ * 
+ * @param path path of the file to be written
+ * @param sockfd socket file descriptor
+ * @param length length of the file
+ */
 void handle_post(string path,int sockfd,int length){
     cout << path <<endl;
     string file=getFileName(path);
@@ -263,24 +237,6 @@ void handle_post(string path,int sockfd,int length){
     send_response(sockfd, r,&ren);
    }
 }
-/**
- * @brief recieve from client
- * 
- * @param new_fd file descriptor to recieve on
- * @param HTTP_req buffer to recieve in
- * @param size buffer size
- * @return string of the message recieved
- */
-string recieve(int new_fd,char * HTTP_req, int size){
-    int numbbytes;
-    if(numbbytes = recv(new_fd, HTTP_req, size, 0) == -1){
-        perror("recv header");
-        exit(1);
-    }
-    //printf ("Recieved : %s", HTTP_req);
-    string message(HTTP_req);
-    return message;
-}
 
 /**
  * @brief reap dead processes
@@ -292,7 +248,13 @@ void sigchld_handler(int signal_number)
     cout << "dead client"<<endl;
 }
 
-
+/**
+ * @brief main function to run the server
+ * 
+ * @param argc argument count
+ * @param argv argument array
+ * @return int 0
+ */
 int run_server(int argc,char* argv[]){
 
     signal(SIGCHLD,sigchld_handler);
@@ -309,8 +271,10 @@ int run_server(int argc,char* argv[]){
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
-
- 
+    char * port = DEFAULT_PORT;
+    if(argc == 2){
+        port = argv[1];
+    }
  if ((rv = getaddrinfo(NULL, DEFAULT_PORT, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
