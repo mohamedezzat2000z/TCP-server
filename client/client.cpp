@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
             		}else{
                		 recivePOST(sockfd);
             		}
-            sleep(4);
+            sleep(6);
         }
 
      close(sockfd);
