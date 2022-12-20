@@ -111,6 +111,14 @@ int get_head(char* s,char* parts[]){
 	return j;
 }
 
+/**
+ * @brief tokenize a string into a vector of strings
+ * 
+ * @param s string to be tokenized
+ * @param delim string delimiter to tokenize around
+ * @param limit tokenization limit (how many slices)
+ * @return vector<string> vector of the sliced string
+ */
 vector<string> simple_tokenizer(string s,string delim, int limit){
     vector<string> seglist;
     size_t pos = 0; 

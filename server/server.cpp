@@ -271,11 +271,11 @@ int run_server(int argc,char* argv[]){
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // use my IP
-    char * port = DEFAULT_PORT;
+    char * port = DEFAULT_PORT;//socket port
     if(argc == 2){
         port = argv[1];
     }
- if ((rv = getaddrinfo(NULL, DEFAULT_PORT, &hints, &servinfo)) != 0) {
+ if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
     }
