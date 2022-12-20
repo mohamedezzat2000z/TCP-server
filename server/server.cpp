@@ -21,7 +21,7 @@
 #include <sys/mman.h>
 #include <signal.h>
 using namespace std;
-#define MAXDATASIZE 100000
+#define MAXDATASIZE 1000000
 #define DEFAULT_PORT "1360" // the port users will be connecting to
 #define BACKLOG 10 // how many pending connections queue will hold
 #define TIMEOUT 10000
@@ -159,8 +159,10 @@ vector<string> simple_tokenizer(string s,string delim, int limit){
         k++;
         if (k==1){
             string head(parts[0]);
+             cout << (head) << endl;
             vector<string>arr =simple_tokenizer(head," ",1);
-            if(*arr.begin() == "POST"){
+            cout << (*arr.begin()) << endl;
+            if((*arr.begin()) == "POST"){
                 z=4;
             }
         }   
@@ -246,18 +248,24 @@ char* handle_post(string path,int sockfd ,char* body,int lenofbody,int length){
     if (newfile.is_open()){   //checking whether the file is open
         newfile.write(body,lenofbody);
         while( len >0){
-                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
+               numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
                 len=len-numbytes;
                 newfile.write((char *)recivebuf,numbytes);
-        }   
+        }  
+    cout << "start1" << endl;
     newfile.close(); //close the file object.
-    char * response;
-    return strcpy(response,construct_header(1).c_str());
+    cout << "start2" << endl;
+    char response[18];
+    strcpy(response,construct_header(1).c_str());
+    char * r = strcat(response, "");
+    return r;
    }
    else{
     printf("file not found");
-    char * response;
-    return strcpy(response,construct_header(0).c_str());
+    char response[25];
+    strcpy(response,construct_header(0).c_str());
+    char *r = strcat(response,"");
+    return r;
    }
 }
 /**
@@ -301,6 +309,7 @@ void send_response(int new_fd,char * responsebuffer, int * n){
 void sigchld_handler(int signal_number)
 {
     (*fd_count)--;
+    cout << "dead client"<<endl;
 }
 
 
@@ -383,7 +392,6 @@ int run_server(int argc,char* argv[]){
                 int pid = fork();
                 if(pid == 0){
                     (*fd_count)  ++;
-                    printf("%d fd count from child \n",*fd_count);
                     close(main_listener);
                     struct pollfd ufds[1];
                     ufds[0].fd = new_fd;
@@ -393,18 +401,16 @@ int run_server(int argc,char* argv[]){
                         if (eve!=-1 && eve!=0){
                         char HTTP_req[MAXDATASIZE];
                         char* newBody;
-                        int numbbytes;
+                        int numbbytes; 
                         if((numbbytes = recv(new_fd , HTTP_req, MAXDATASIZE, 0)) == -1){
                             perror("recv header");
                             break;
                         }
-                        printf ("Recieved : %s", HTTP_req);
 
                         // We got some good data from a client
                         char* arguments[5];
                         int rest=0;
                         int arguments_len=get_head(HTTP_req,arguments,&rest);
-
                         if(arguments_len == 3){
 
                             string header(arguments[0]);
@@ -415,13 +421,16 @@ int run_server(int argc,char* argv[]){
                         }
                         else if(arguments_len==4){
                             string header(arguments[0]);
+                            cout << "get here 1" << endl;
                             vector<string>arr = simple_tokenizer(header, " ",3);
                             string contentlength(arguments[3]);
                             vector<string>arr2 = simple_tokenizer(contentlength,":",2);
-
+                             cout << "get here 2" << endl;
                             int len = stoi(*(arr2.begin()+1));
-                            newBody = handle_post(*(arr.begin()+1),new_fd,arguments[4],rest,len-rest);
-                            int l = 20;
+                            len=len-(numbbytes-rest); 
+                            newBody = handle_post(*(arr.begin()+1),new_fd,arguments[4],(numbbytes-rest),len);
+                            cout << "get here 4" << endl;  
+                            int l = strlen(newBody);
                             send_response(new_fd, newBody,&l);
                         }
                         else{
