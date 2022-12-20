@@ -153,12 +153,9 @@ void reciveGET(int sockfd,string filepath){
         string arr[4];
 	    string s(parts[0]);
         simple_tokenizer(s,arr);
-        printf("%s",recivebuf);
-                        printf(" hi");
 
         if(arr[1]=="200"){
             int length=stoi(parts[1]);
-            cout << length << endl;
             string file=getFileName(filepath);
             ofstream out(file);
   	        if(! out)
@@ -168,16 +165,17 @@ void reciveGET(int sockfd,string filepath){
 
             out.write((char *)parts[2],MAXDATASIZE-j);
             length=length-(MAXDATASIZE-j);
-            while( numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0)>0){
+            while( length>0){
+                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
                 length=length-MAXDATASIZE;
                 if (length<=0){
-		            cout << length << "\n";
+		           
                     out.write((char *)recivebuf,MAXDATASIZE+length);
 		        }
                 else
                 out.write((char *)recivebuf,sizeof(recivebuf));
+                
             }
-            cout << length << "\n";
             out.close();
 
         }
@@ -199,7 +197,6 @@ char * add_body(string filePath,int *len){
     ifs.read(pChars, length);
     *len=length;
     ifs.close();
-    cout << length << "\n";
     return pChars;
 }
 
@@ -221,7 +218,6 @@ int construct_http_and_send(int socket ,string arr[]){
     if (type=="POST"){
         char* s = add_body(arr[1],&length);
         bulid=bulid+"content-length:"+to_string(length)+"\r\n"+"\r\n";
-	    cout << length << "\n";
     	length = length + bulid.length();
     	char headerbuff[length];
     	strcpy(headerbuff,bulid.c_str());
@@ -248,9 +244,7 @@ int main(int argc, char *argv[])
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-
     ///////////////////////////////////////////////////////////
-
     fstream command;
     command.open("tpoint.txt",ios::in); //open a file to perform read operation using file objec
     if (command.is_open()){   //checking whether the file is open
@@ -267,9 +261,9 @@ int main(int argc, char *argv[])
 
 		cout << tp << "\n";
 		int taken=simple_tokenizer(tp,arr);
-		/*if(arr[2]!=host && arr[3]!=port){
+		if(arr[2]!=host && arr[3]!=port){
         if(sockfd!=-5)
-            close(sockfd);*/
+            close(sockfd);
 		cout << "new connection" <<endl;
 	    	// create the connection 
     	struct addrinfo *servinfo, *p;
@@ -314,7 +308,7 @@ int main(int argc, char *argv[])
     			inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),s, sizeof s);
     			printf("client: connecting to %s\n", s);
     			freeaddrinfo(servinfo); // all done with this structure
-  		//}
+  		}
             //read data from file object and put it into string.
             // parse the array and make the http header
 
@@ -324,13 +318,12 @@ int main(int argc, char *argv[])
             		}
             		if(arr[0]=="client_get"){
                 		reciveGET(sockfd,arr[1]);
-
             		}else{
                		 recivePOST(sockfd);
             		}
-			close(sockfd);
+            sleep(5);
 
-        	}
+        }
 
      close(sockfd);
      command.close(); //close the file object.

@@ -111,7 +111,6 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_count)
  */
 string construct_header(int status,int dataLength = 0){
     if (status == 1 && dataLength > 0){
-    cout << dataLength << endl;
     return "HTTP/1.1 200 OK\r\n"+to_string(dataLength)+"\r\n";
     }
     else if(status == 1){
@@ -307,7 +306,7 @@ void sigchld_handler(int signal_number)
 
 int run_server(int argc,char* argv[]){
 
-    //signal(SIGCHLD,sigchld_handler);
+    signal(SIGCHLD,sigchld_handler);
     int main_listener, new_fd;  // listen on sock_fd, new connection on new_fd
     struct addrinfo hints, *servinfo, *p;
     struct sockaddr_storage client_info; // client's address information
@@ -378,109 +377,80 @@ int run_server(int argc,char* argv[]){
 
 
     while(1) { // main accept() loop
-        int poll_count = poll(pfds, *fd_count, 2500);
-                                // printf("fd_count from parent%d \n",*fd_count);
 
-         for(int i = 0; i < *fd_count; i++) {
-            if (pfds[i].revents & POLLIN) { // We got one!!
-              if (pfds[i].fd == main_listener) {
-                    // If listener is ready to read, handle new connection
+                sin_size = sizeof client_info;
+                new_fd = accept4(main_listener,(struct sockaddr *)&client_info,&sin_size, SOCK_NONBLOCK);
 
-                    sin_size = sizeof client_info;
-                    new_fd = accept4(main_listener,
-                        (struct sockaddr *)&client_info,
-                        &sin_size, SOCK_NONBLOCK);
+                if (new_fd == -1) {
+                    perror("accept");
+                    continue;
+                }
 
-                    if (new_fd == -1) {
-                        perror("accept");
-                    } else {
-                        add_to_pfds(&pfds, new_fd, fd_count, &fd_size);
+                printf("pollserver: new connection from %s on ""socket %d\n",
+                inet_ntop(client_info.ss_family,get_in_addr((struct sockaddr*)&client_info),remoteIP, INET6_ADDRSTRLEN),new_fd);
 
-                        printf("pollserver: new connection from %s on "
-                            "socket %d\n",
-                            inet_ntop(client_info.ss_family,
-                                get_in_addr((struct sockaddr*)&client_info),
-                                remoteIP, INET6_ADDRSTRLEN),
-                            new_fd);
-                    }
-                
-            }else{
                 int pid = fork();
                 if(pid == 0){
-                close(main_listener);
-                 int client_fd = pfds[i].fd;
-                //  int status = fcntl(client_fd, F_SETFL, fcntl(client_fd, F_GETFL, 0) | O_NONBLOCK);
-                for (int time = 0; time < 10/((*fd_count)-1); time++){
-                    sleep(10);
-                    char HTTP_req[MAXDATASIZE];
-                    char* newBody;
-                   
-                    int numbbytes;
-                    if((numbbytes = recv(client_fd, HTTP_req, MAXDATASIZE, 0)) == -1){
-                        perror("recv header");
-                        break;
-                    }
-                    printf ("Recieved : %s", HTTP_req);
-                    // string str_req(HTTP_req);
-                
-                    // cout << "struck" <<"\n";
-                    // We got some good data from a client
-                    char* arguments[5];
-                    int rest=0;
-                    int arguments_len=get_head(HTTP_req,arguments,&rest);
-                
-                    // cout << *arr.begin() << endl;
-                    //vector<string> header = simple_tokenizer(*arr.begin()," ",3);
-                    // cout << *header.begin() << endl;
-                    if(arguments_len == 3){
-                        string header(arguments[0]);
-                        vector<string>arr = simple_tokenizer(header, " ",3);
-                        int len = 0;
-                        newBody = handle_get(*(arr.begin()+1), &len);
-                        send_response(client_fd, newBody,&len);
-                    }
-                    else if(arguments_len==4){
-                        string header(arguments[0]);
-                        vector<string>arr = simple_tokenizer(header, " ",3);
-                        string contentlength(arguments[3]);
-                        vector<string>arr2 = simple_tokenizer(contentlength,":",2);
+                    close(main_listener);
+                    struct pollfd ufds[1];
+                    ufds[0].fd = new_fd;
+                    ufds[0].events = POLLIN;
+                    while(1){
+                        int eve=poll(ufds,1,9000);
+                        if (eve!=-1 && eve!=0){
+                            cout << eve << endl;
+                        char HTTP_req[MAXDATASIZE];
+                        char* newBody;
+                        int numbbytes;
+                        if((numbbytes = recv(new_fd , HTTP_req, MAXDATASIZE, 0)) == -1){
+                            perror("recv header");
+                            break;
+                        }
+                        printf ("Recieved : %s", HTTP_req);
 
-                        int len = stoi(*(arr2.begin()+1));
-                        newBody = handle_post(*(arr.begin()+1),client_fd,arguments[4],rest,len-rest);
-                        int l = 20;
-                        send_response(client_fd, newBody,&l);
+                        // We got some good data from a client
+                        char* arguments[5];
+                        int rest=0;
+                        int arguments_len=get_head(HTTP_req,arguments,&rest);
 
+                        if(arguments_len == 3){
+
+                            string header(arguments[0]);
+                            vector<string>arr = simple_tokenizer(header, " ",3);
+                            int len = 0;
+                            newBody = handle_get(*(arr.begin()+1), &len);
+                            send_response(new_fd, newBody,&len);
+                        }
+                        else if(arguments_len==4){
+                            string header(arguments[0]);
+                            vector<string>arr = simple_tokenizer(header, " ",3);
+                            string contentlength(arguments[3]);
+                            vector<string>arr2 = simple_tokenizer(contentlength,":",2);
+
+                            int len = stoi(*(arr2.begin()+1));
+                            newBody = handle_post(*(arr.begin()+1),new_fd,arguments[4],rest,len-rest);
+                            int l = 20;
+                            send_response(new_fd, newBody,&l);
+                        }
+                        else{
+                            if(send(new_fd, "error parsing HTTP protocol", 1000,0) == -1){
+                                 perror("send");
+                                    break;
+                            }    
+                        }
                     }
-                    else{
-                        if(send(client_fd, "error parsing HTTP protocol", 1000,0) == -1){
-                                perror("send");
-                                break;
-                        }    
+                    else if(eve==0){
+                        cout << "time out" << endl;
+                        close(new_fd);
+                        kill(getpid(), SIGINT);
+                    }else{
+                        perror("poll"); // error occurred in poll()
                     }
+                  }
                 }
-                close(client_fd);
-                del_from_pfds(pfds, i, fd_count);
-                // printf("fd_count from child%d",* fd_count);
-                exit(1);
-                    
-            }else{
-                close(pfds[i].fd);
+                close(new_fd);
             }
-            }
-            }
-         }
-    }
-        // if (!fork()) { // this is the child process
-            // else if(*header.begin() == "POST"){
-                
-            // }
-            // else{
-            //     newBody = "";
-            //     printf("error HTTP protocol not found");
-            // }            
-            // }
-     
-    // }
+    cout << "why" << endl;
     return 0;
 }
 
