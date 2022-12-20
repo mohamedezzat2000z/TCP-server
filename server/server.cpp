@@ -24,7 +24,7 @@ using namespace std;
 #define MAXDATASIZE 100000
 #define DEFAULT_PORT "1360" // the port users will be connecting to
 #define BACKLOG 10 // how many pending connections queue will hold
-
+#define TIMEOUT 10000
    // Start off with room for 5 connections
     // (We'll realloc as necessary)
     int* fd_count = (int*) mmap(NULL, sizeof (int) , PROT_READ | PROT_WRITE,
@@ -300,7 +300,7 @@ void send_response(int new_fd,char * responsebuffer, int * n){
  */
 void sigchld_handler(int signal_number)
 {
-    cout << "dead" << endl;
+    (*fd_count)--;
 }
 
 
@@ -365,21 +365,12 @@ int run_server(int argc,char* argv[]){
     pfds[0].fd = main_listener;
     pfds[0].events = POLLIN; // Report ready to read on incoming connection
 
-    *fd_count = 1; // For the listener
-
-    // sa.sa_handler = sigchld_handler; // reap all dead processes
-    // sigemptyset(&sa.sa_mask);
-    // sa.sa_flags = SA_RESTART;
-    // if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-    //     perror("sigaction");
-    //     exit(1);
-    // }
-
+    *fd_count = 0; // For the listener
 
     while(1) { // main accept() loop
 
                 sin_size = sizeof client_info;
-                new_fd = accept4(main_listener,(struct sockaddr *)&client_info,&sin_size, SOCK_NONBLOCK);
+                new_fd = accept(main_listener,(struct sockaddr *)&client_info,&sin_size);
 
                 if (new_fd == -1) {
                     perror("accept");
@@ -391,14 +382,15 @@ int run_server(int argc,char* argv[]){
 
                 int pid = fork();
                 if(pid == 0){
+                    (*fd_count)  ++;
+                    printf("%d fd count from child \n",*fd_count);
                     close(main_listener);
                     struct pollfd ufds[1];
                     ufds[0].fd = new_fd;
                     ufds[0].events = POLLIN;
                     while(1){
-                        int eve=poll(ufds,1,9000);
+                        int eve=poll(ufds,1,TIMEOUT/(*fd_count));
                         if (eve!=-1 && eve!=0){
-                            cout << eve << endl;
                         char HTTP_req[MAXDATASIZE];
                         char* newBody;
                         int numbbytes;
@@ -450,7 +442,6 @@ int run_server(int argc,char* argv[]){
                 }
                 close(new_fd);
             }
-    cout << "why" << endl;
     return 0;
 }
 

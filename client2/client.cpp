@@ -313,6 +313,7 @@ int main(int argc, char *argv[])
             // parse the array and make the http header
 
             		if( construct_http_and_send(sockfd,arr) == -1){
+                		perror("connect");
                 		exit(1);
             		}
             		if(arr[0]=="client_get"){
@@ -320,7 +321,7 @@ int main(int argc, char *argv[])
             		}else{
                		 recivePOST(sockfd);
             		}
-            sleep(4);
+                sleep(4);
         }
 
      close(sockfd);
