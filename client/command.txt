@@ -1,1 +1,1 @@
-client_get ./kol/rat.jpg aaser-VirtualBox 1360
+client_get ./indexx.html mohamed-VirtualBox 1360

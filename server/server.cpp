@@ -369,7 +369,8 @@ int run_server(int argc,char* argv[]){
                             int len = 0;
                             newBody = handle_get(*(arr2.begin()+1), &len);
                             send_response(new_fd, newBody,&len);
-                            free(newBody);
+                            if(len > 24)
+                                free(newBody);
                         }
                         else if((*(arr2.begin()) )== "POST"){
                         
