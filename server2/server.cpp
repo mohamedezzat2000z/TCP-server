@@ -150,6 +150,7 @@ void send_response(int new_fd,char * responsebuffer, int * n){
             perror("send");
             exit(1);
         }
+    printf("sent\n");
 }
 
 /**
@@ -198,6 +199,14 @@ char* handle_get(string path, int * read){
         h++;
     }
     char * prin = response;
+    for(int j = 0; j < header.length();j++){
+        printf("%c",*prin);
+        prin++;
+    }    char * prin = response;
+    for(int j = 0; j < header.length();j++){
+        printf("%c",*prin);
+        prin++;
+    }
     return response;
 }
 /**
@@ -208,7 +217,7 @@ char* handle_get(string path, int * read){
  * @param length length of the file
  */
 void handle_post(string path,int sockfd,int length){
-
+    cout << path <<endl;
     string file=getFileName(path);
     fstream newfile;
     int len=length;
@@ -246,6 +255,7 @@ void handle_post(string path,int sockfd,int length){
 void sigchld_handler(int signal_number)
 {
     (*fd_count)--;
+    cout << "dead client"<<endl;
 }
 
 /**
@@ -361,7 +371,6 @@ int run_server(int argc,char* argv[]){
 
                         HTTP_req[numbbytes] = '\0';
                         string header(HTTP_req);
-                        cout << header << endl;
                         vector<string>arr = simple_tokenizer(header,"\r\n",4);
                      
                         vector<string>arr2 = simple_tokenizer(*(arr.begin()), " ",3);

@@ -1,0 +1,2 @@
+client_get ./rat.jpg aaser-VirtualBox 1360
+client_get ./index.html aaser-VirtualBox

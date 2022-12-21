@@ -186,12 +186,10 @@ int recivePOST(int sockfd){
             exit(1);
         }
         recivebuf[numbytes] = '\0';
-        printf("Received: %s",recivebuf);
-
         vector<string>arr = simple_tokenizer(recivebuf," ",3);
         if ( (*(arr.begin()+1) )== "200" )
             return 1;
-        
+
         return -1;
 }
 
@@ -216,7 +214,6 @@ void reciveGET(int sockfd,string filepath){
         string arr[4];
 	    string s(parts[0]);
         simple_tokenizer(s,arr);
-
         if(arr[1]=="200"){ // in case the request is ok
             string contLength(parts[1]);
             vector<string>arr = simple_tokenizer(parts[1],":",2);
@@ -237,6 +234,7 @@ void reciveGET(int sockfd,string filepath){
                 out.write((char *)recivebuf,numbytes);// write the recived buffer
             }
             out.close(); // close the file
+            
 
         }
 }
@@ -302,12 +300,13 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM; // socket stream for tcp connection
 
     if(argc<2){
-        print("no command file entred")
-        exit(1)
+        printf("no command file entred");
+        exit(1);
     }
     fstream command;// intial the file 
     command.open(argv[1],ios::in); //open a file to perform read operation using file objec
-    if (command.is_open()){   //checking whether the file is open
+    if (command.is_open()){ 
+        //checking whether the file is open
     string tp;  // the readed command 
     string arr[4]; // string array to hold the 
     // initalize the array
@@ -315,26 +314,29 @@ int main(int argc, char *argv[])
 	arr[1]="";
 	arr[2]="";
 	arr[3]="";
-	string host;// the host that will be will be sent in connection pasred from commmand 
-	string port;// the host that port that will be sent in connection pasred from commmand 
+	string host="";// the host that will be will be sent in connection pasred from commmand 
+	string port="";// the host that port that will be sent in connection pasred from commmand 
  
     while(getline(command, tp)){  // read file in lines
-
-		int taken=simple_tokenizer(tp,arr); // parse the command and get the number of element sent in it
-		if(arr[2]!=host && arr[3]!=port){ // if the command wants a new host and port then start new connection
-        if(sockfd!=-5) // if the inital socket
-            close(sockfd); // close the last socket
+    cout << tp << endl;
+		int taken=simple_tokenizer(tp,arr);
+  // parse the command and get the number of element sent in it
+		if(arr[2]!=host || !(arr[3]==port || (arr[3].length()==0 && port=="1360"))  ){  // if the command wants a new host and port then start new connection
+            if(sockfd!=-5) // if the inital socket
+                close(sockfd); // close the last socket
 		cout << "new connection" <<endl;
 	    	// create the connection 
     	struct addrinfo *servinfo, *p;
     	int rv;
     	char s[INET6_ADDRSTRLEN];
-		if (taken==4)
+		if (arr[3].length()>0){
 			port=arr[3];
-		else
-			port=DEFAULT_PORT;
-		    host=arr[2];
-
+        }
+		else{
+            string temp(DEFAULT_PORT);
+			port=temp;
+        }
+		host=arr[2];
 		// convert from strin to char array
 		    int pl = port.length();
     		char prt[pl+1];
@@ -378,6 +380,7 @@ int main(int argc, char *argv[])
             		if(arr[0]=="client_get"){
                 		reciveGET(sockfd,arr[1]);
             		}
+                    sleep(1);// not to overwhelm the server
         }
 
      close(sockfd); // close the socket

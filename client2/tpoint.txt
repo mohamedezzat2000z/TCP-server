@@ -1,3 +1,0 @@
-client_get ./test.txt aaser-VirtualBox 1360
-client_get ./crack.txt aaser-VirtualBox
-client_get ./index.html aaser-VirtualBox 1360
