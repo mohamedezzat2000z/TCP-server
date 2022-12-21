@@ -160,7 +160,7 @@ void send_response(int new_fd,char * responsebuffer, int * n){
  * @return char* the constructed response for http get
  */
 char* handle_get(string path, int * read){
-
+    
      ifstream ifs(path, ios::binary|ios::ate);
      if(!ifs.is_open()){
         string header = construct_header(0);
