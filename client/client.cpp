@@ -225,14 +225,16 @@ void reciveGET(int sockfd,string filepath){
     		    cout<<"Cannot open output file\n";
                 exit(-1);
   	        }
-
-            out.write((char *)parts[2],MAXDATASIZE-j); // write the rest of the file bart
-            length=length-(MAXDATASIZE-j);// the length of the 
-            while( length>0){ // if the file does not recive it all
-                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);// the numebr of the recived byte + fill the buffer with the recive data
-                length=length-numbytes;// decrease the length of the length
-                out.write((char *)recivebuf,numbytes);// write the recived buffer
+            if(length > 0){
+                out.write((char *)parts[2],MAXDATASIZE-j); // write the rest of the file bart
+                length=length-(MAXDATASIZE-j);// the length of the 
+                while( length>0){ // if the file does not recive it all
+                    numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);// the numebr of the recived byte + fill the buffer with the recive data
+                    length=length-numbytes;// decrease the length of the length
+                    out.write((char *)recivebuf,numbytes);// write the recived buffer
+                }
             }
+
             out.close(); // close the file
             
 

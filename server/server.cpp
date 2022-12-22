@@ -75,8 +75,8 @@ string getFileName(string filePath){
  * @param dataLength length of the data put it as zero for post requests
  * @return string of the http request
  */
-string construct_header(int status,int dataLength = 0){
-    if (status == 1 && dataLength > 0){
+string construct_header(int status,int dataLength = -1){
+    if (status == 1 && dataLength >= 0){
     return "HTTP/1.1 200 OK\r\n" +string("content-length:")+to_string(dataLength)+"\r\n";
     }
     else if(status == 1){
@@ -161,44 +161,48 @@ void send_response(int new_fd,char * responsebuffer, int * n){
  */
 char* handle_get(string path, int * read){
     
-     ifstream ifs(path, ios::binary|ios::ate);
-     if(!ifs.is_open()){
-        string header = construct_header(0);
+     ifstream ifs(path, ios::binary|ios::ate);//open the file 
+     if(!ifs.is_open()){//if it does not exits we send back NOT FOUND
+        string header = construct_header(0);//construct an NOT FOUND header
         char headerbuff[header.length()];
+        cout << "File Not found!\n" <<endl;
+        cout << header << endl;
         char* response = strcpy(headerbuff,header.c_str());
         *read = header.length();
-        return response;
+        return response;//return the response
      }
+     //if the file is open
     ifstream::pos_type pos = ifs.tellg();
     int length = pos;
-
+    //new array to read data into
     char *pChars = new char[length];
     ifs.seekg(0, ios::beg);
-    ifs.read(pChars, length);
+    ifs.read(pChars, length);//read data
 
-    ifs.close();
-    string header =construct_header(1,length);
-    *read = length + header.length();
+    ifs.close();//close file
+    string header =construct_header(1,length);//construct an OK header
+    cout << "File found!"<< endl;
+    cout << header << endl;
+    *read = length + header.length();//increment the raw data's length
     char headerbuff[*read];
     strcpy(headerbuff,header.c_str());
-    char * response = (char *) malloc(sizeof(char)*(*read));
-    char * h = response;
+    char * response = (char *) malloc(sizeof(char)*(*read));//allocate an new buffer to recieve the whole message
+    char * h = response;//pointer to start appending header data
     int i = 0;
-    while(headerbuff[i] != '\0'){
+    while(headerbuff[i] != '\0'){//append header data
         *h = headerbuff[i];
         i++;
         h++;
     }
-    char * b = pChars;
+    char * b = pChars;//pointer to start appending data itself
     while (i < (*read))
-    {
+    {//append data
         *h = *b;
         i++;
         b++; 
         h++;
     }
-    char * prin = response;
-    return response;
+    return response;//return the response back
 }
 /**
  * @brief function to handle incoming post requests from client
@@ -213,15 +217,15 @@ void handle_post(string path,int sockfd,int length){
     fstream newfile;
     int len=length;
     int numbytes=0;
-    char recivebuf[MAXDATASIZE];
+    char recivebuf[MAXDATASIZE];//reciever buffer
     newfile.open(file,ios::out); //open a file to perform read operation using file object
     if (newfile.is_open()){//checking whether the file is open
         int ren=18;
         char response[ren];
-        strcpy(response,construct_header(1).c_str());
+        strcpy(response,construct_header(1).c_str());//construct a header to send back OK to start recieveing the file
         char * r = strcat(response, "");
-        send_response(sockfd, r,&ren);
-        while( len >0){
+        send_response(sockfd, r,&ren);//send the OK message
+        while( len >0){//recieve back the file contents and write it
                numbytes=recv(sockfd, recivebuf, MAXDATASIZE, 0);
                 len=len-numbytes;
                 newfile.write((char *)recivebuf,numbytes);
@@ -273,16 +277,17 @@ int run_server(int argc,char* argv[]){
     hints.ai_flags = AI_PASSIVE; // use my IP
 
     char * port;//socket port
-    if(argc ==1){
+    if(argc ==1){//if there is no given port
         string p = DEFAULT_PORT;
         port = new char[p.length()+1];
         strcpy(port, p.c_str());
         printf(" connecting on port%s \n", port);    
         cout << port << endl;      
     }
-    else if(argc == 2){
+    else if(argc == 2){//if there is a given port
         port=argv[1];
     }
+    //validate port number
  if ((rv = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
@@ -311,11 +316,12 @@ int run_server(int argc,char* argv[]){
     }
 
      freeaddrinfo(servinfo); // all done with this structure
+     //if binding failed
     if (p == NULL)  {
         fprintf(stderr, "server: failed to bind\n");
         exit(1);
     }
-
+    // start the listener
     if (listen(main_listener, BACKLOG) == -1) {
         perror("listen");
         exit(1);
@@ -329,10 +335,11 @@ int run_server(int argc,char* argv[]){
     *fd_count = 0; // For the listener
 
     while(1) { // main accept() loop
-
+                //client info
                 sin_size = sizeof client_info;
+                //accept the new requests
                 new_fd = accept(main_listener,(struct sockaddr *)&client_info,&sin_size);
-
+                //if accepting failed
                 if (new_fd == -1) {
                     perror("accept");
                     continue;
@@ -340,52 +347,52 @@ int run_server(int argc,char* argv[]){
 
                 printf("pollserver: new connection from %s on ""socket %d\n",
                 inet_ntop(client_info.ss_family,get_in_addr((struct sockaddr*)&client_info),remoteIP, INET6_ADDRSTRLEN),new_fd);
-
+                //for a child process to handle the request
                 int pid = fork();
-                if(pid == 0){
-                    (*fd_count)  ++;
-                    close(main_listener);
-                    struct pollfd ufds[1];
-                    ufds[0].fd = new_fd;
-                    ufds[0].events = POLLIN;
-                    int numbbytes; 
-                    while(1){
-                        int eve=poll(ufds,1,TIMEOUT/(*fd_count));
-                        if (eve!=-1 && eve!=0){
+                if(pid == 0){//if it is the child process
+                    (*fd_count)  ++;//increment number of processes working
+                    close(main_listener);//close listener file descriptor as the child does not need it
+                    struct pollfd ufds[1];//make a polling ds
+                    ufds[0].fd = new_fd;//add the given file descriptor
+                    ufds[0].events = POLLIN;//poll it
+                    int numbbytes; //integer to store number of bytes
+                    while(1){//polling loop
+                        int eve=poll(ufds,1,TIMEOUT/(*fd_count));//poll on the socket
+                        if (eve!=-1 && eve!=0){// if an event occured
                         char HTTP_req[MAXDATASIZE];
                         char* newBody; 
-                        if((numbbytes = recv(new_fd , HTTP_req, MAXDATASIZE, 0)) == -1){
+                        if((numbbytes = recv(new_fd , HTTP_req, MAXDATASIZE, 0)) == -1){//recieve the message on the socket
                             perror("recv header");
                             break;
                         }
 
                         HTTP_req[numbbytes] = '\0';
-                        string header(HTTP_req);
+                        string header(HTTP_req);//get the string to print
                         cout << header << endl;
-                        vector<string>arr = simple_tokenizer(header,"\r\n",4);
+                        vector<string>arr = simple_tokenizer(header,"\r\n",4);//parse header for connection data
                      
-                        vector<string>arr2 = simple_tokenizer(*(arr.begin()), " ",3);
-                        if((*(arr2.begin())) == "GET"){
+                        vector<string>arr2 = simple_tokenizer(*(arr.begin()), " ",3);//parse the first line to extract the command
+                        if((*(arr2.begin())) == "GET"){//if the command is GET
                             int len = 0;
-                            newBody = handle_get(*(arr2.begin()+1), &len);
-                            send_response(new_fd, newBody,&len);
+                            newBody = handle_get(*(arr2.begin()+1), &len);//send to the handle get function
+                            send_response(new_fd, newBody,&len);//formulate response and send it back
                             if(len > 24)
-                                free(newBody);
+                                free(newBody);//free the allocated resources
                         }
-                        else if((*(arr2.begin()) )== "POST"){
+                        else if((*(arr2.begin()) )== "POST"){//if the command is POST
                         
-                            vector<string>arr3 = simple_tokenizer((*(arr.begin()+3) ),":",2);
-                            int len = stoi(*(arr3.begin()+1));
-                            handle_post(*(arr2.begin()+1),new_fd,len);
+                            vector<string>arr3 = simple_tokenizer((*(arr.begin()+3) ),":",2);//parse the last line to get the content's length
+                            int len = stoi(*(arr3.begin()+1));//convert the length string to integer
+                            handle_post(*(arr2.begin()+1),new_fd,len);// send to handle post function
                         }
                         else{
-                            if(send(new_fd, "error parsing HTTP protocol", 1000,0) == -1){
+                            if(send(new_fd, "error parsing HTTP protocol", 1000,0) == -1){//if the header was sent wrong
                                  perror("send");
                                     break;
                             }    
                         }
                     }
-                    else if(eve==0){
+                    else if(eve==0){//if the time expired we timeout
                         cout << "time out" << endl;
                         close(new_fd);
                         kill(getpid(), SIGINT);
@@ -394,7 +401,7 @@ int run_server(int argc,char* argv[]){
                     }
                   }
                 }
-                close(new_fd);
+                close(new_fd);//parent closes the file descriptor to continue listening for new requests
     }
     return 0;
 }
